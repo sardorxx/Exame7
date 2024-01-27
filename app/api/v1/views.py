@@ -9,21 +9,57 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 from rest_framework.authtoken.models import Token
 from django.contrib.auth import authenticate
+from django.contrib.auth import authenticate, login, get_user_model
+from django.http import JsonResponse
+from rest_framework.authtoken.models import Token
+from rest_framework.decorators import api_view, permission_classes
+from rest_framework.permissions import AllowAny
+from rest_framework.response import Response
+from rest_framework import status
 
+User = get_user_model()
 
-class UserRegistrationView(generics.CreateAPIView):
-    serializer_class = UserSerializer
-    permission_classes = [permissions.AllowAny]
+@api_view(['POST'])
+@permission_classes([AllowAny])
+def signup_view(request):
+    username = request.data.get('username')
+    password = request.data.get('password')
 
+    if username is None or password is None:
+        return JsonResponse({'error': 'Please provide both username and password'}, status=400)
 
-class UserLoginView(APIView):
-    def post(self, request):
-        user = authenticate(username=request.data['username'], password=request.data['password'])
-        if user:
-            token, created = Token.objects.get_or_create(user=user)
-            return Response({'token': token.key})
-        else:
-            return Response({'error': 'Invalid credentials'}, status=401)
+    if User.objects.filter(username=username).exists():
+        return JsonResponse({'error': 'Username is already taken'}, status=400)
+
+    user = User.objects.create_user(username=username, password=password)
+    login(request, user)
+    token, created = Token.objects.get_or_create(user=user)
+
+    return JsonResponse({'token': token.key})
+
+@api_view(['POST'])
+@permission_classes([AllowAny])
+def login_view(request):
+    username = request.data.get('username')
+    password = request.data.get('password')
+
+    if username is None or password is None:
+        return JsonResponse({'error': 'Please provide both username and password'}, status=400)
+
+    user = authenticate(username=username, password=password)
+
+    if not user:
+        return JsonResponse({'error': 'Invalid credentials'}, status=400)
+
+    login(request, user)
+    token, created = Token.objects.get_or_create(user=user)
+
+    return JsonResponse({'token': token.key})
+
+@api_view(['POST'])
+def logout_view(request):
+    request.auth.delete()  # Invalidate the token
+    return JsonResponse({'message': 'Logout successful'})
 
 
 class UserPassManagerlFilterViewSet(viewsets.ModelViewSet):
