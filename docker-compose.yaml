@@ -15,6 +15,3 @@ services:
       tty: true
       volumes:
         - db
-
-
-
